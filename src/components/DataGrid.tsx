@@ -26,9 +26,10 @@ import CellLabelViewer from './CellLabelViewer';
 
 interface DataGridProps {
   className?: string;
+  onRowSelect?: (rowIndex: number) => void;
 }
 
-export const DataGrid: React.FC<DataGridProps> = () => {
+export const DataGrid: React.FC<DataGridProps> = ({ onRowSelect }) => {
   const {
     currentFile,
     cellLabels,
@@ -206,9 +207,22 @@ export const DataGrid: React.FC<DataGridProps> = () => {
                   >
                     <Stack spacing={0.5} alignItems="center">
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Typography variant="body2" fontWeight={500}>
-                          {rowIndex + 1}
-                        </Typography>
+                        <Tooltip title="Vai al riepilogo della riga">
+                          <Typography 
+                            variant="body2" 
+                            fontWeight={500}
+                            sx={{ 
+                              cursor: onRowSelect ? 'pointer' : 'default',
+                              '&:hover': onRowSelect ? { 
+                                color: 'primary.main',
+                                textDecoration: 'underline'
+                              } : {}
+                            }}
+                            onClick={() => onRowSelect?.(rowIndex)}
+                          >
+                            {rowIndex + 1}
+                          </Typography>
+                        </Tooltip>
                         <Tooltip title="Vista dettagliata rispondente">
                           <IconButton
                             size="small"

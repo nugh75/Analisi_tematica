@@ -31,6 +31,9 @@ export interface AppState {
   showAnalytics: boolean;
   keyColumn: string | null;
   
+  // Row Summary state
+  selectedRowForSummary: number;
+  
   // Colonne Anagrafiche
   demographicColumns: Set<string>; // Nome delle colonne anagrafiche
   
@@ -56,6 +59,9 @@ export interface AppState {
   setKeyColumn: (column: string | null) => void;
   setShowLabelPanel: (show: boolean) => void;
   setShowAnalytics: (show: boolean) => void;
+  
+  // Row Summary actions
+  setSelectedRowForSummary: (rowIndex: number) => void;
   
   // Demographic columns actions
   setDemographicColumns: (columns: Set<string>) => void;
@@ -86,6 +92,7 @@ export const useAppStore = create<AppState>()(
       showLabelPanel: true,
       showAnalytics: false,
       keyColumn: null,
+      selectedRowForSummary: 0,
       demographicColumns: new Set(),
 
       // Actions
@@ -473,6 +480,7 @@ export const useAppStore = create<AppState>()(
       setKeyColumn: (column: string | null) => set({ keyColumn: column }),
       setShowLabelPanel: (show: boolean) => set({ showLabelPanel: show }),
       setShowAnalytics: (show: boolean) => set({ showAnalytics: show }),
+      setSelectedRowForSummary: (rowIndex: number) => set({ selectedRowForSummary: rowIndex }),
       setDemographicColumns: (columns: Set<string>) => set({ demographicColumns: columns }),
       addDemographicColumn: (columnName: string) => set(state => {
         const columns = new Set(state.demographicColumns);

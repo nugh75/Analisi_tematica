@@ -20,28 +20,29 @@ import {
 import {
   TableChart,
   Label,
-  Navigation,
   Analytics,
   CloudUpload,
   Settings as SettingsIcon,
-  FolderOpen
+  FolderOpen,
+  ViewList
 } from '@mui/icons-material';
 import { materialTheme } from '@/theme/materialTheme';
 import FileUpload from '@/components/FileUpload';
 import { DataGrid } from '@/components/DataGrid';
 import { LabelManager } from '@/components/LabelManager';
 import ColumnManager from '@/components/ColumnManager';
-import { CellNavigator } from '@/components/CellNavigator';
 import { AnalyticsDashboard } from '@/components/AnalyticsDashboard';
+import RowSummary from '@/components/RowSummary';
 import { useAppStore } from '@/store/useAppStore';
 
-type TabType = 'files' | 'data' | 'labels' | 'columns' | 'navigator' | 'analytics';
+type TabType = 'files' | 'data' | 'labels' | 'columns' | 'rowsummary' | 'analytics';
 
 function App() {
   const {
     currentFile,
     loadAvailableFiles,
-    labels
+    labels,
+    setSelectedRowForSummary
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<TabType>('files');
@@ -97,9 +98,9 @@ function App() {
       disabled: !currentFile 
     },
     { 
-      id: 'navigator' as TabType, 
-      label: 'Navigazione', 
-      icon: Navigation, 
+      id: 'rowsummary' as TabType, 
+      label: 'Riepilogo Riga', 
+      icon: ViewList, 
       color: 'success',
       disabled: !currentFile 
     },
@@ -111,6 +112,12 @@ function App() {
       disabled: !currentFile 
     },
   ];
+
+  // Function to handle row selection from DataGrid
+  const handleRowSelect = (rowIndex: number) => {
+    setSelectedRowForSummary(rowIndex);
+    setActiveTab('rowsummary');
+  };
 
   const renderMainContent = () => {
     if (!currentFile && activeTab !== 'files' && activeTab !== 'labels') {
@@ -138,13 +145,13 @@ function App() {
       case 'files':
         return <FileUpload />;
       case 'data':
-        return currentFile ? <DataGrid /> : null;
+        return currentFile ? <DataGrid onRowSelect={handleRowSelect} /> : null;
       case 'labels':
         return <LabelManager />;
       case 'columns':
         return <ColumnManager />;
-      case 'navigator':
-        return <CellNavigator />;
+      case 'rowsummary':
+        return <RowSummary />;
       case 'analytics':
         return <AnalyticsDashboard />;
       default:
