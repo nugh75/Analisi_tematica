@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { db, type ExcelFile, type Label, type CellLabel } from '../lib/database';
+import { db, type ExcelFile, type Label, type CellLabel, resetDatabase } from '../lib/database';
 import * as XLSX from 'xlsx';
 
 export interface ExcelData {
@@ -31,10 +31,6 @@ export interface AppState {
   showAnalytics: boolean;
   keyColumn: string | null;
   
-  // Sidebar state
-  sidebarCollapsed: boolean;
-  sidebarWidth: number;
-  
   // Colonne Anagrafiche
   demographicColumns: Set<string>; // Nome delle colonne anagrafiche
   
@@ -60,11 +56,6 @@ export interface AppState {
   setKeyColumn: (column: string | null) => void;
   setShowLabelPanel: (show: boolean) => void;
   setShowAnalytics: (show: boolean) => void;
-  
-  // Sidebar actions
-  setSidebarCollapsed: (collapsed: boolean) => void;
-  setSidebarWidth: (width: number) => void;
-  toggleSidebar: () => void;
   
   // Demographic columns actions
   setDemographicColumns: (columns: Set<string>) => void;
@@ -95,8 +86,6 @@ export const useAppStore = create<AppState>()(
       showLabelPanel: true,
       showAnalytics: false,
       keyColumn: null,
-      sidebarCollapsed: false,
-      sidebarWidth: 320,
       demographicColumns: new Set(),
 
       // Actions
@@ -188,6 +177,18 @@ export const useAppStore = create<AppState>()(
       setFiles: (files: ExcelFile[]) => set({ files }),
 
       loadAvailableFiles: async () => {
+        // Prova a inizializzare il database e gestisci errori di schema
+        try {
+          await db.open();
+        } catch (error) {
+          console.log('Errore apertura database, provo a resettare...', error);
+          try {
+            await resetDatabase();
+          } catch (resetError) {
+            console.error('Errore nel reset del database:', resetError);
+          }
+        }
+
         const availableFiles = [
           {
             name: 'Cnr-Uniroma3 - Studenti - Questionario sull\'uso dell\'Intelligenza Artificiale (Risposte).xlsx',
@@ -277,29 +278,85 @@ export const useAppStore = create<AppState>()(
       },
 
       applyCellLabel: async (rowIndex: number, columnIndex: number, labelId: string) => {
-        const currentFile = get().currentFile;
-        if (!currentFile?.id) return;
-
-        // Ottieni la versione corrente per questa cella
-        const existingLabels = await db.cellLabels
-          .where('[fileId+rowIndex+columnIndex]')
-          .equals([currentFile.id, rowIndex, columnIndex])
-          .toArray();
+        console.log('Store applyCellLabel chiamata:', { rowIndex, columnIndex, labelId });
         
-        const currentVersion = Math.max(0, ...existingLabels.map(l => l.version || 0));
+        const currentFile = get().currentFile;
+        if (!currentFile?.id) {
+          console.error('Nessun file corrente o ID mancante');
+          return;
+        }
 
-        const cellLabel: Omit<CellLabel, 'id'> = {
-          fileId: currentFile.id,
-          rowIndex,
-          columnIndex,
-          labelId,
-          isRowLabel: false,
-          appliedAt: new Date(),
-          version: currentVersion + 1
-        };
+        console.log('File corrente:', currentFile.id);
 
-        await db.cellLabels.add(cellLabel);
-        await get().loadCellLabels(currentFile.id);
+        try {
+          // Ottieni la versione corrente per questa cella
+          const existingLabels = await db.cellLabels
+            .where('[fileId+rowIndex+columnIndex]')
+            .equals([currentFile.id, rowIndex, columnIndex])
+            .toArray();
+          
+          console.log('Etichette esistenti per questa cella:', existingLabels);
+          
+          const currentVersion = Math.max(0, ...existingLabels.map(l => l.version || 0));
+
+          const cellLabel: Omit<CellLabel, 'id'> = {
+            fileId: currentFile.id,
+            rowIndex,
+            columnIndex,
+            labelId,
+            isRowLabel: false,
+            appliedAt: new Date(),
+            version: currentVersion + 1
+          };
+
+          console.log('Aggiungendo etichetta:', cellLabel);
+          
+          const result = await db.cellLabels.add(cellLabel);
+          console.log('Etichetta aggiunta con ID:', result);
+          await get().loadCellLabels(currentFile.id);
+          console.log('Etichette ricaricate');
+
+        } catch (error) {
+          console.error('Errore nell\'aggiunta dell\'etichetta al database:', error);
+          
+          // Se l'errore riguarda gli indici, proviamo un approccio diverso
+          if (error instanceof Error && error.message && error.message.includes('is not indexed')) {
+            console.log('Errore di indice rilevato, provo query alternative...');
+            
+            try {
+              // Proviamo a usare query separate invece dell'indice composto
+              const existingLabels = await db.cellLabels
+                .where('fileId').equals(currentFile.id)
+                .and(item => item.rowIndex === rowIndex && item.columnIndex === columnIndex)
+                .toArray();
+              
+              console.log('Etichette esistenti trovate con query alternativa:', existingLabels);
+              
+              const currentVersion = Math.max(0, ...existingLabels.map(l => l.version || 0));
+
+              const cellLabel: Omit<CellLabel, 'id'> = {
+                fileId: currentFile.id,
+                rowIndex,
+                columnIndex,
+                labelId,
+                isRowLabel: false,
+                appliedAt: new Date(),
+                version: currentVersion + 1
+              };
+
+              const result = await db.cellLabels.add(cellLabel);
+              console.log('Etichetta aggiunta con approccio alternativo, ID:', result);
+              await get().loadCellLabels(currentFile.id);
+              console.log('Etichette ricaricate');
+              
+            } catch (fallbackError) {
+              console.error('Anche l\'approccio alternativo è fallito:', fallbackError);
+              throw fallbackError;
+            }
+          } else {
+            throw error;
+          }
+        }
       },
 
       applyRowLabel: async (rowIndex: number, labelId: string) => {
@@ -334,8 +391,8 @@ export const useAppStore = create<AppState>()(
         if (!currentFile?.id) return;
 
         await db.cellLabels
-          .where('[fileId+rowIndex+columnIndex+labelId]')
-          .equals([currentFile.id, rowIndex, columnIndex, labelId])
+          .where('fileId').equals(currentFile.id)
+          .and(item => item.rowIndex === rowIndex && item.columnIndex === columnIndex && item.labelId === labelId)
           .delete();
 
         await get().loadCellLabels(currentFile.id);
@@ -416,9 +473,6 @@ export const useAppStore = create<AppState>()(
       setKeyColumn: (column: string | null) => set({ keyColumn: column }),
       setShowLabelPanel: (show: boolean) => set({ showLabelPanel: show }),
       setShowAnalytics: (show: boolean) => set({ showAnalytics: show }),
-      setSidebarCollapsed: (collapsed: boolean) => set({ sidebarCollapsed: collapsed }),
-      setSidebarWidth: (width: number) => set({ sidebarWidth: width }),
-      toggleSidebar: () => set(state => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       setDemographicColumns: (columns: Set<string>) => set({ demographicColumns: columns }),
       addDemographicColumn: (columnName: string) => set(state => {
         const columns = new Set(state.demographicColumns);
@@ -438,9 +492,8 @@ export const useAppStore = create<AppState>()(
         if (!currentFile?.id) return [];
         
         return await db.cellLabels
-          .where('[fileId+rowIndex+columnIndex]')
-          .equals([currentFile.id, rowIndex, columnIndex])
-          .and(item => !item.isRowLabel)
+          .where('fileId').equals(currentFile.id)
+          .and(item => item.rowIndex === rowIndex && item.columnIndex === columnIndex && !item.isRowLabel)
           .toArray();
       },
 
@@ -449,9 +502,8 @@ export const useAppStore = create<AppState>()(
         if (!currentFile?.id) return [];
         
         return await db.cellLabels
-          .where('[fileId+rowIndex]')
-          .equals([currentFile.id, rowIndex])
-          .and(item => item.isRowLabel === true)
+          .where('fileId').equals(currentFile.id)
+          .and(item => item.rowIndex === rowIndex && item.isRowLabel === true)
           .toArray();
       },
 
@@ -460,9 +512,8 @@ export const useAppStore = create<AppState>()(
         if (!currentFile?.id) return [];
         
         return await db.cellLabels
-          .where('[fileId+rowIndex+columnIndex]')
-          .equals([currentFile.id, rowIndex, columnIndex])
-          .and(item => !item.isRowLabel)
+          .where('fileId').equals(currentFile.id)
+          .and(item => item.rowIndex === rowIndex && item.columnIndex === columnIndex && !item.isRowLabel)
           .reverse()
           .sortBy('version');
       },
@@ -483,8 +534,8 @@ export const useAppStore = create<AppState>()(
         
         // Ottieni tutte le etichette per questa riga
         const allLabels = await db.cellLabels
-          .where('[fileId+rowIndex]')
-          .equals([currentFile.id, rowIndex])
+          .where('fileId').equals(currentFile.id)
+          .and(item => item.rowIndex === rowIndex)
           .toArray();
 
         const labelsByCell = new Map<string, CellLabel[]>();

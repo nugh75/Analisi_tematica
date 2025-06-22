@@ -37,12 +37,23 @@ export class ThematicAnalysisDB extends Dexie {
 
   constructor() {
     super('ThematicAnalysisDB');
-    this.version(2).stores({
+    this.version(3).stores({
       excelFiles: '++id, name, uploadDate',
       labels: 'id, name, parentId, createdAt',
-      cellLabels: '++id, fileId, rowIndex, columnIndex, labelId, isRowLabel, appliedAt, version'
+      cellLabels: '++id, fileId, rowIndex, columnIndex, labelId, isRowLabel, appliedAt, version, [fileId+rowIndex+columnIndex], [fileId+rowIndex], [fileId+rowIndex+columnIndex+labelId]'
     });
   }
 }
 
 export const db = new ThematicAnalysisDB();
+
+// Funzione per resettare il database in caso di problemi di schema
+export const resetDatabase = async () => {
+  try {
+    await db.delete();
+    await db.open();
+    console.log('Database reset completato');
+  } catch (error) {
+    console.error('Errore nel reset del database:', error);
+  }
+};

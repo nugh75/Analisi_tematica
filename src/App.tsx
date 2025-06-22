@@ -6,55 +6,45 @@ import {
   Toolbar,
   Typography,
   Box,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  IconButton,
   Container,
   Paper,
   Fade,
   Chip,
   Stack,
-  Divider
+  Tab,
+  Tabs,
+  Badge,
+  Tooltip,
+  IconButton
 } from '@mui/material';
 import {
   TableChart,
   Label,
   Navigation,
   Analytics,
-  Menu as MenuIcon,
-  Close as CloseIcon,
   CloudUpload,
-  PersonOutline
+  Settings as SettingsIcon,
+  FolderOpen
 } from '@mui/icons-material';
 import { materialTheme } from '@/theme/materialTheme';
 import FileUpload from '@/components/FileUpload';
 import { DataGrid } from '@/components/DataGrid';
 import { LabelManager } from '@/components/LabelManager';
-import { ColumnSelector } from '@/components/ColumnSelector';
+import ColumnManager from '@/components/ColumnManager';
 import { CellNavigator } from '@/components/CellNavigator';
 import { AnalyticsDashboard } from '@/components/AnalyticsDashboard';
-import { DemographicColumnsManager } from '@/components/DemographicColumnsManager';
-import { ResizableSidebar } from '@/components/ResizableSidebar';
 import { useAppStore } from '@/store/useAppStore';
 
-type TabType = 'data' | 'labels' | 'navigator' | 'analytics' | 'demographics';
+type TabType = 'files' | 'data' | 'labels' | 'columns' | 'navigator' | 'analytics';
 
 function App() {
   const {
     currentFile,
-    showLabelPanel,
-    setShowLabelPanel,
-    sidebarCollapsed,
-    sidebarWidth,
-    setSidebarWidth,
-    toggleSidebar,
     loadAvailableFiles,
+    labels
   } = useAppStore();
 
-  const [activeTab, setActiveTab] = useState<TabType>('data');
+  const [activeTab, setActiveTab] = useState<TabType>('files');
 
   // Carica automaticamente i file disponibili al mount
   useEffect(() => {
@@ -69,16 +59,61 @@ function App() {
     initializeApp();
   }, [loadAvailableFiles]);
 
+  // Switch to data tab when a file is loaded
+  useEffect(() => {
+    if (currentFile && activeTab === 'files') {
+      setActiveTab('data');
+    }
+  }, [currentFile, activeTab]);
+
   const tabs = [
-    { id: 'data' as TabType, label: 'Dati Excel', icon: TableChart, color: 'primary' },
-    { id: 'labels' as TabType, label: 'Etichette', icon: Label, color: 'secondary' },
-    { id: 'demographics' as TabType, label: 'Anagrafiche', icon: PersonOutline, color: 'info' },
-    { id: 'navigator' as TabType, label: 'Navigazione', icon: Navigation, color: 'success' },
-    { id: 'analytics' as TabType, label: 'Analisi', icon: Analytics, color: 'warning' },
+    { 
+      id: 'files' as TabType, 
+      label: 'File', 
+      icon: FolderOpen, 
+      color: 'primary',
+      disabled: false 
+    },
+    { 
+      id: 'data' as TabType, 
+      label: 'Dati', 
+      icon: TableChart, 
+      color: 'primary',
+      disabled: !currentFile 
+    },
+    { 
+      id: 'labels' as TabType, 
+      label: 'Etichette', 
+      icon: Label, 
+      color: 'secondary',
+      disabled: !currentFile,
+      badge: labels.length > 0 ? labels.length : undefined
+    },
+    { 
+      id: 'columns' as TabType, 
+      label: 'Colonne', 
+      icon: SettingsIcon, 
+      color: 'info',
+      disabled: !currentFile 
+    },
+    { 
+      id: 'navigator' as TabType, 
+      label: 'Navigazione', 
+      icon: Navigation, 
+      color: 'success',
+      disabled: !currentFile 
+    },
+    { 
+      id: 'analytics' as TabType, 
+      label: 'Analisi', 
+      icon: Analytics, 
+      color: 'warning',
+      disabled: !currentFile 
+    },
   ];
 
   const renderMainContent = () => {
-    if (!currentFile && activeTab !== 'data' && activeTab !== 'labels' && activeTab !== 'demographics') {
+    if (!currentFile && activeTab !== 'files' && activeTab !== 'labels') {
       return (
         <Box
           display="flex"
@@ -93,19 +128,21 @@ function App() {
             Nessun file caricato
           </Typography>
           <Typography variant="body2" color="textSecondary">
-            Carica un file Excel per utilizzare questa funzionalità
+            Vai alla tab "File" per caricare un file Excel
           </Typography>
         </Box>
       );
     }
 
     switch (activeTab) {
+      case 'files':
+        return <FileUpload />;
       case 'data':
-        return currentFile ? <DataGrid /> : <FileUpload />;
+        return currentFile ? <DataGrid /> : null;
       case 'labels':
         return <LabelManager />;
-      case 'demographics':
-        return <DemographicColumnsManager />;
+      case 'columns':
+        return <ColumnManager />;
       case 'navigator':
         return <CellNavigator />;
       case 'analytics':
@@ -118,7 +155,7 @@ function App() {
   return (
     <ThemeProvider theme={materialTheme}>
       <CssBaseline />
-      <Box sx={{ display: 'flex', height: '100vh', bgcolor: 'background.default' }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', bgcolor: 'background.default' }}>
         {/* App Bar */}
         <AppBar
           position="fixed"
@@ -129,16 +166,6 @@ function App() {
           }}
         >
           <Toolbar>
-            <IconButton
-              color="inherit"
-              aria-label="toggle sidebar"
-              edge="start"
-              onClick={toggleSidebar}
-              sx={{ mr: 2 }}
-            >
-              <MenuIcon />
-            </IconButton>
-            
             <TableChart sx={{ mr: 2 }} />
             <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
               Analisi Tematica
@@ -165,143 +192,115 @@ function App() {
           </Toolbar>
         </AppBar>
 
-        {/* Resizable Navigation Sidebar */}
-        <ResizableSidebar
-          width={sidebarWidth}
-          onWidthChange={setSidebarWidth}
-          collapsed={sidebarCollapsed}
-          minWidth={250}
-          maxWidth={600}
-        >
-          <Box sx={{ pt: '64px', height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ p: 2, flex: 1, overflow: 'auto' }}>
-              {/* Navigation Tabs */}
-              <Typography variant="h6" sx={{ mb: 2, color: 'primary.main', fontWeight: 600 }}>
-                Sezioni
-              </Typography>
-              <List sx={{ mb: 2 }}>
-                {tabs.map((tab) => (
-                  <ListItem key={tab.id} disablePadding sx={{ mb: 1 }}>
-                    <ListItemButton
-                      selected={activeTab === tab.id}
+        {/* Main Layout with Vertical Icon Menu */}
+        <Box sx={{ display: 'flex', flex: 1, mt: '64px' }}>
+          {/* Vertical Icon Navigation */}
+          <Paper
+            sx={{
+              width: 64,
+              bgcolor: 'background.paper',
+              borderRight: 1,
+              borderColor: 'divider',
+              display: 'flex',
+              flexDirection: 'column',
+              py: 1,
+            }}
+            elevation={0}
+          >
+            <Stack spacing={1} alignItems="center">
+              {tabs.map((tab) => (
+                <Tooltip key={tab.id} title={tab.label} placement="right" arrow>
+                  <Box sx={{ position: 'relative' }}>
+                    {/* Indicatore visuale per tab attiva */}
+                    {activeTab === tab.id && (
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          left: -8,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 4,
+                          height: 24,
+                          bgcolor: `${tab.color}.main`,
+                          borderRadius: '0 2px 2px 0',
+                          zIndex: 1,
+                        }}
+                      />
+                    )}
+                    <IconButton
                       onClick={() => setActiveTab(tab.id)}
+                      disabled={tab.disabled}
                       sx={{
+                        width: 48,
+                        height: 48,
+                        bgcolor: activeTab === tab.id ? `${tab.color}.50` : 'transparent',
                         borderRadius: 2,
-                        '&.Mui-selected': {
-                          bgcolor: `${tab.color}.light`,
-                          color: `${tab.color}.contrastText`,
-                          '&:hover': {
-                            bgcolor: `${tab.color}.main`,
-                          },
+                        transition: 'all 0.2s ease-in-out',
+                        '&:hover': {
+                          bgcolor: tab.disabled ? 'transparent' : `${tab.color}.100`,
+                          transform: tab.disabled ? 'none' : 'scale(1.05)',
+                        },
+                        '&.Mui-disabled': {
+                          opacity: 0.3,
+                          bgcolor: 'transparent',
                         },
                       }}
                     >
-                      <ListItemIcon
-                        sx={{
-                          color: activeTab === tab.id ? 'inherit' : `${tab.color}.main`,
-                        }}
-                      >
-                        <tab.icon />
-                      </ListItemIcon>
-                      <ListItemText 
-                        primary={tab.label}
-                        primaryTypographyProps={{
-                          fontWeight: activeTab === tab.id ? 600 : 400,
-                        }}
-                      />
-                    </ListItemButton>
-                  </ListItem>
-                ))}
-              </List>
-
-              <Divider sx={{ my: 2 }} />
-
-              {/* Conditional Sidebar Content */}
-              {currentFile && (
-                <Stack spacing={2}>
-                  {/* File Upload */}
-                  <Paper sx={{ p: 2 }} elevation={2}>
-                    <Typography variant="subtitle2" sx={{ mb: 1, color: 'primary.main' }}>
-                      Gestione File
-                    </Typography>
-                    <FileUpload />
-                  </Paper>
-
-                  {/* Column Selector */}
-                  <ColumnSelector />
-
-                  {/* Label Manager when not main focus */}
-                  {activeTab !== 'labels' && (
-                    <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
-                      <LabelManager />
-                    </Box>
-                  )}
-                </Stack>
-              )}
-            </Box>
-          </Box>
-        </ResizableSidebar>
-
-        {/* Main Content */}
-        <Box
-          component="main"
-          sx={{
-            flexGrow: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            mt: '64px',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Quick Labels Panel */}
-          {currentFile && showLabelPanel && (
-            <Fade in={showLabelPanel}>
-              <Paper
-                sx={{
-                  p: 2,
-                  borderRadius: 0,
-                  borderBottom: 1,
-                  borderColor: 'divider',
-                  bgcolor: 'primary.50',
-                }}
-                elevation={1}
-              >
-                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                  <Typography variant="subtitle2" color="primary.main" fontWeight={600}>
-                    Etichette Rapide
-                  </Typography>
-                  <IconButton
-                    size="small"
-                    onClick={() => setShowLabelPanel(false)}
-                    sx={{ color: 'action.active' }}
-                  >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                </Stack>
-                <Typography variant="caption" color="text.secondary">
-                  Le etichette rapide appariranno qui dopo la creazione
-                </Typography>
-              </Paper>
-            </Fade>
-          )}
+                      {tab.badge ? (
+                        <Badge
+                          badgeContent={tab.badge}
+                          color="secondary"
+                          sx={{
+                            '& .MuiBadge-badge': {
+                              fontSize: '0.65rem',
+                              height: 16,
+                              minWidth: 16,
+                            },
+                          }}
+                        >
+                          <tab.icon 
+                            sx={{ 
+                              fontSize: 20,
+                              color: activeTab === tab.id ? `${tab.color}.main` : 'action.active',
+                              transition: 'color 0.2s ease-in-out',
+                            }} 
+                          />
+                        </Badge>
+                      ) : (
+                        <tab.icon 
+                          sx={{ 
+                            fontSize: 20,
+                            color: activeTab === tab.id ? `${tab.color}.main` : 'action.active',
+                            transition: 'color 0.2s ease-in-out',
+                          }} 
+                        />
+                      )}
+                    </IconButton>
+                  </Box>
+                </Tooltip>
+              ))}
+            </Stack>
+          </Paper>
 
           {/* Content Area */}
-          <Container
-            maxWidth={false}
-            sx={{
-              flex: 1,
-              py: 3,
-              px: 3,
-              overflow: 'auto',
-              bgcolor: 'background.default',
-            }}
-          >
-            <Fade in timeout={300}>
-              <Box>
-                {renderMainContent()}
-              </Box>
-            </Fade>
-          </Container>
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <Container
+              maxWidth={false}
+              sx={{
+                flex: 1,
+                py: 3,
+                px: 3,
+                overflow: 'auto',
+                bgcolor: 'background.default',
+              }}
+            >
+              <Fade in timeout={300}>
+                <Box>
+                  {renderMainContent()}
+                </Box>
+              </Fade>
+            </Container>
+          </Box>
         </Box>
       </Box>
     </ThemeProvider>

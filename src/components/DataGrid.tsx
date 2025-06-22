@@ -104,9 +104,14 @@ export const DataGrid: React.FC<DataGridProps> = () => {
             label="Prima colonna fissa"
           />
         </Stack>
-        <Typography variant="body2" color="text.secondary">
-          {currentFile.data.length} righe × {visibleColumnIndices.length} colonne
-        </Typography>
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Typography variant="body2" color="text.secondary">
+            {currentFile.data.length} righe × {visibleColumnIndices.length} colonne
+          </Typography>
+          <Typography variant="caption" color="primary.main" sx={{ fontStyle: 'italic' }}>
+            💡 Clicca su una cella per etichettarla • Clicca sul numero di riga per etichettare l'intera riga
+          </Typography>
+        </Stack>
       </Box>
 
       <TableContainer sx={{ flex: 1, maxHeight: '70vh' }}>
@@ -274,6 +279,20 @@ export const DataGrid: React.FC<DataGridProps> = () => {
                             backgroundColor: isDemographic 
                               ? 'info.100' 
                               : isCellHighlighted ? 'secondary.100' : 'action.hover',
+                            ...(isDemographic ? {} : {
+                              '&::after': {
+                                content: '"Clicca per etichettare"',
+                                position: 'absolute',
+                                top: 2,
+                                right: 2,
+                                fontSize: '0.6rem',
+                                color: 'primary.main',
+                                backgroundColor: 'primary.50',
+                                padding: '2px 4px',
+                                borderRadius: '4px',
+                                pointerEvents: 'none',
+                              }
+                            })
                           },
                         }}
                       >

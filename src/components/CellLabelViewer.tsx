@@ -70,9 +70,11 @@ export const CellLabelViewer: React.FC<CellLabelViewerProps> = ({
   });
   const [showHistory, setShowHistory] = useState(false);
   const [showAddLabels, setShowAddLabels] = useState(false);
+  const [recentlyAdded, setRecentlyAdded] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && currentFile) {
+      console.log('CellLabelViewer opened:', { rowIndex, columnIndex, labelsCount: labels.length });
       loadLabelData();
     }
   }, [open, rowIndex, columnIndex, currentFile]);
@@ -101,13 +103,32 @@ export const CellLabelViewer: React.FC<CellLabelViewerProps> = ({
   };
 
   const handleAddLabel = async (labelId: string) => {
-    if (columnIndex !== undefined) {
-      await applyCellLabel(rowIndex, columnIndex, labelId);
-    } else {
-      await applyRowLabel(rowIndex, labelId);
+    console.log('handleAddLabel chiamata con:', { labelId, rowIndex, columnIndex });
+    
+    try {
+      const labelInfo = getLabelInfo(labelId);
+      console.log('LabelInfo trovata:', labelInfo);
+      
+      if (columnIndex !== undefined) {
+        console.log('Applicando etichetta alla cella...');
+        await applyCellLabel(rowIndex, columnIndex, labelId);
+      } else {
+        console.log('Applicando etichetta alla riga...');
+        await applyRowLabel(rowIndex, labelId);
+      }
+      
+      console.log('Etichetta applicata, ricaricando dati...');
+      await loadLabelData();
+      setRecentlyAdded(labelInfo?.name || labelId);
+      
+      // Nascondi il feedback dopo 2 secondi
+      setTimeout(() => setRecentlyAdded(null), 2000);
+    } catch (error) {
+      console.error('Errore nell\'aggiunta dell\'etichetta:', error);
+      alert('Errore nell\'aggiunta dell\'etichetta: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setShowAddLabels(false);
     }
-    await loadLabelData();
-    setShowAddLabels(false);
   };
 
   const getLabelInfo = (labelId: string) => {
@@ -124,12 +145,54 @@ export const CellLabelViewer: React.FC<CellLabelViewerProps> = ({
     }).format(new Date(date));
   };
 
+  const cleanCellValue = (cellValue: any, columnName: string) => {
+    if (!cellValue) return cellValue;
+    
+    const valueStr = cellValue.toString();
+    const cleanColumnName = columnName.trim();
+    
+    // Se il contenuto della cella inizia con la domanda, la rimuoviamo
+    if (valueStr.toLowerCase().startsWith(cleanColumnName.toLowerCase())) {
+      const withoutQuestion = valueStr.substring(cleanColumnName.length).trim();
+      // Rimuovi caratteri di punteggiatura iniziali come :, -, ecc.
+      return withoutQuestion.replace(/^[:;\-\s]+/, '').trim();
+    }
+    
+    // Se la domanda è contenuta all'inizio del valore, proviamo a separarla
+    const questionEnd = valueStr.indexOf('\n');
+    if (questionEnd > 0 && questionEnd < 200) { // Se c'è un a capo entro 200 caratteri
+      const possibleQuestion = valueStr.substring(0, questionEnd).trim();
+      const possibleAnswer = valueStr.substring(questionEnd + 1).trim();
+      
+      // Se la prima parte sembra una domanda (contiene ?) e la seconda una risposta
+      if (possibleQuestion.includes('?') && possibleAnswer.length > 10) {
+        return possibleAnswer;
+      }
+    }
+    
+    return valueStr;
+  };
+
   const renderCellView = () => {
     if (!currentFile || columnIndex === undefined) return null;
 
-    const cellValue = currentFile.data[rowIndex]?.[columnIndex];
+    const rawCellValue = currentFile.data[rowIndex]?.[columnIndex];
     const columnName = currentFile.headers[columnIndex];
+    const cellValue = cleanCellValue(rawCellValue, columnName);
     const isDemo = isDemographicColumn(columnName);
+
+    // Debug: Vediamo il contenuto effettivo (rimuovi in produzione)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Debug CellLabelViewer:', {
+        rowIndex,
+        columnIndex,
+        columnName,
+        rawCellValue: rawCellValue?.toString().substring(0, 100) + '...',
+        cleanedCellValue: cellValue?.toString().substring(0, 100) + '...',
+        cellValueType: typeof cellValue,
+        cellValueLength: cellValue?.toString().length
+      });
+    }
 
     return (
       <Box>
@@ -160,14 +223,30 @@ export const CellLabelViewer: React.FC<CellLabelViewerProps> = ({
                 Posizione
               </Typography>
               <Typography variant="body1" fontWeight={500}>
-                Riga {rowIndex + 1}, Colonna "{columnName}"
+                Riga {rowIndex + 1}, Colonna {columnIndex + 1}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                "{columnName}"
               </Typography>
             </Box>
-            <Box sx={{ flex: 1 }}>
+            <Box sx={{ flex: 2 }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                Contenuto
+                Risposta
               </Typography>
-              <Typography variant="body1" fontWeight={500}>
+              <Typography 
+                variant="body1" 
+                fontWeight={500}
+                sx={{ 
+                  wordBreak: 'break-word',
+                  maxHeight: '150px',
+                  overflow: 'auto',
+                  p: 1,
+                  bgcolor: 'background.paper',
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: 'divider'
+                }}
+              >
                 {cellValue || '(vuoto)'}
               </Typography>
             </Box>
@@ -184,6 +263,25 @@ export const CellLabelViewer: React.FC<CellLabelViewerProps> = ({
 
         {!isDemo && (
           <>
+            {/* Feedback per etichetta aggiunta */}
+            {recentlyAdded && (
+              <Paper 
+                elevation={2} 
+                sx={{ 
+                  p: 2, 
+                  mb: 2, 
+                  bgcolor: 'success.100', 
+                  border: 1, 
+                  borderColor: 'success.300',
+                  animation: 'fadeIn 0.3s ease-in'
+                }}
+              >
+                <Typography variant="body2" color="success.dark" fontWeight={500}>
+                  ✅ Etichetta "{recentlyAdded}" aggiunta con successo!
+                </Typography>
+              </Paper>
+            )}
+
             {/* Etichette correnti */}
             <Box sx={{ mb: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
@@ -192,35 +290,47 @@ export const CellLabelViewer: React.FC<CellLabelViewerProps> = ({
                 </Typography>
                 <Button
                   size="small"
-                  variant="outlined"
-                  startIcon={<AddIcon />}
+                  variant={showAddLabels ? "contained" : "outlined"}
+                  color={showAddLabels ? "secondary" : "primary"}
+                  startIcon={showAddLabels ? <CloseIcon /> : <AddIcon />}
                   onClick={() => setShowAddLabels(!showAddLabels)}
+                  sx={{ minWidth: 140 }}
                 >
-                  Aggiungi Etichetta
+                  {showAddLabels ? 'Chiudi' : 'Aggiungi Etichetta'}
                 </Button>
               </Box>
 
               {showAddLabels && (
-                <Paper elevation={1} sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
-                  <Typography variant="body2" gutterBottom>
-                    Seleziona un'etichetta da aggiungere:
+                <Paper elevation={1} sx={{ p: 2, mb: 2, bgcolor: 'success.50', border: 1, borderColor: 'success.200' }}>
+                  <Typography variant="body2" gutterBottom fontWeight={500} color="success.dark">
+                    💡 Seleziona un'etichetta da aggiungere alla risposta:
                   </Typography>
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    {labels.map((label) => (
-                      <Chip
-                        key={label.id}
-                        label={label.name}
-                        size="small"
-                        clickable
-                        onClick={() => handleAddLabel(label.id)}
-                        sx={{
-                          bgcolor: label.color,
-                          color: 'white',
-                          '&:hover': { opacity: 0.8 }
-                        }}
-                      />
-                    ))}
-                  </Stack>
+                  {labels.length > 0 ? (
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                      {labels.map((label) => (
+                        <Chip
+                          key={label.id}
+                          label={label.name}
+                          size="small"
+                          clickable
+                          onClick={() => handleAddLabel(label.id)}
+                          sx={{
+                            bgcolor: label.color,
+                            color: 'white',
+                            '&:hover': { 
+                              opacity: 0.8,
+                              transform: 'scale(1.05)',
+                              transition: 'all 0.2s'
+                            }
+                          }}
+                        />
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      ⚠️ Nessuna etichetta disponibile. Crea prima delle etichette nella sezione "Etichette".
+                    </Typography>
+                  )}
                 </Paper>
               )}
 
