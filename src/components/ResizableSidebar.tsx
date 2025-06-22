@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { Box, Paper } from '@mui/material';
+import { Box } from '@mui/material';
 
 interface ResizableSidebarProps {
   children: React.ReactNode;

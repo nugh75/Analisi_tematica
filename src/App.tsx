@@ -30,7 +30,7 @@ import {
   PersonOutline
 } from '@mui/icons-material';
 import { materialTheme } from '@/theme/materialTheme';
-import { FileUpload } from '@/components/FileUpload';
+import FileUpload from '@/components/FileUpload';
 import { DataGrid } from '@/components/DataGrid';
 import { LabelManager } from '@/components/LabelManager';
 import { ColumnSelector } from '@/components/ColumnSelector';
@@ -39,15 +39,12 @@ import { AnalyticsDashboard } from '@/components/AnalyticsDashboard';
 import { DemographicColumnsManager } from '@/components/DemographicColumnsManager';
 import { ResizableSidebar } from '@/components/ResizableSidebar';
 import { useAppStore } from '@/store/useAppStore';
-import { db } from '@/lib/database';
 
 type TabType = 'data' | 'labels' | 'navigator' | 'analytics' | 'demographics';
 
 function App() {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('lg'));
-function App() {
-    setFiles,
+  const {
+    currentFile,
     showLabelPanel,
     setShowLabelPanel,
     sidebarCollapsed,
@@ -126,7 +123,7 @@ function App() {
         <AppBar
           position="fixed"
           sx={{
-            zIndex: theme.zIndex.drawer + 1,
+            zIndex: (theme) => theme.zIndex.drawer + 1,
             background: 'linear-gradient(45deg, #1976d2 30%, #42a5f5 90%)',
             boxShadow: '0 3px 5px 2px rgba(25, 118, 210, .3)',
           }}
